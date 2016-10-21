@@ -47,20 +47,15 @@ class Jambi(object):
             else:
                 self.logger.info('this database hasn\'t been migrated yet')
         except ProgrammingError:
-            self.init()
-            self.inspect()
-        except:
-            import traceback
-            traceback.print_exc()
+            # table is not created
+            self.logger.info('run \'init\' to create a jambi version table first')
+            result = None
         finally:
             self.db.close()
-            return result
         return result
 
     def init(self):
         """initialize the jambi database version table"""
-        self.logger.info('jambi will initialize in your database')
-
         self.db.connect()
         self.db.create_tables([JambiModel], safe=True)
         self.db.close()
