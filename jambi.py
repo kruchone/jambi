@@ -50,7 +50,6 @@ class Jambi(object):
                     migrator = PostgresqlMigrator(self.db)
                     upgrades = m.upgrade(migrator)
                     migrate(*upgrades)
-                print(migrations[-1][1])
                 self.__set_version(migrations[-1][1])
             self.db.close()
             self.logger.info(self.inspect())
