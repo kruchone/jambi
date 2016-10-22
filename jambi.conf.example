@@ -1,0 +1,9 @@
+[database]
+database=database
+schema=public
+host=localhost
+user=postgres
+password=
+
+[migrate]
+location=./migrations
