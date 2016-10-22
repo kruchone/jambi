@@ -5,6 +5,7 @@ import importlib
 import logging
 import os
 import re
+import shutil
 import sys
 import time
 
@@ -28,7 +29,7 @@ class JambiModel(Model):
 class Jambi(object):
     """A database migration helper for peewee."""
     def __init__(self):
-        logging.basicConfig(level=logging.DEBUG)
+        logging.basicConfig(level=logging.INFO)
         logging.getLogger('peewee').setLevel(logging.INFO)
         self.logger = logging.getLogger('jambi')
         self.db, self.db_schema = self.__get_db_and_schema_from_config()
@@ -52,7 +53,6 @@ class Jambi(object):
                     migrate(*upgrades)
                 self.__set_version(migrations[-1][1])
             self.db.close()
-            self.logger.info(self.inspect())
         else:
             self.logger.info('you are already up to date')
         return
@@ -63,7 +63,9 @@ class Jambi(object):
 
     def latest(self):
         """returns the latest version in the migrations folder"""
-        return NotImplemented
+        ver = int(self.find_migrations()[-1][1])
+        self.logger.info('latest migration is at version {}'.format(ver))
+        return ver
 
     def find_migrations(self):
         """find, import, and return all migration files as modules"""
@@ -125,7 +127,7 @@ class Jambi(object):
         """
         JambiModel.delete().execute()
         JambiModel.create(ref=str(ref))
-        self.logger.info('set jambi version to {}'.format(ref))
+        self.logger.debug('set jambi version to {}'.format(ref))
 
     def init(self):
         """initialize the jambi database version table"""
@@ -138,9 +140,15 @@ class Jambi(object):
             self.logger.info('database was already initialized')
         self.db.close()
 
-    def makemigration(self, template=None):
+    def makemigration(self, template=None, message=None):
         """create a new migration from template and place in migrate location"""
-        return NotImplemented
+        template = template or 'migration_template.py'
+        ver = self.latest() + 1
+        destination = os.path.join(os.getcwd(), self.getconfig('migrate', 'location'))
+        fname = 'version_{}.py'.format(ver)
+        shutil.copyfile(template, os.path.join(destination, fname))
+        self.logger.info('migration \'{}\' created'.format(fname))
+        self.latest()
 
     def wish_from_kwargs(self, **kwargs):
         """Processes keyword arguments in to a jambi wish."""
@@ -153,8 +161,13 @@ class Jambi(object):
             result = self.upgrade(kwargs.pop('ref', None))
         elif wish == 'inspect':
             result = self.inspect()
+        elif wish == 'latest':
+            result = self.latest()
         elif wish == 'init':
             result = self.init()
+        elif wish == 'makemigration':
+            result = self.makemigration(template=kwargs.pop('template', None),
+                                        message=kwargs.pop('message', None))
         else:
             self.logger.error('unknown wish')
             result = None
@@ -175,8 +188,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Migration tools for the db.')
     subparsers = parser.add_subparsers(title='actions', dest='wish')
 
-    wish_inspect = subparsers.add_parser('inspect', help='check database version')
-    wish_inspect = subparsers.add_parser('init', help='create jambi table')
+    subparsers.add_parser('inspect', help='check database version')
+    subparsers.add_parser('latest', help='get latest migration version')
+    subparsers.add_parser('init', help='create jambi table')
+    wish_make = subparsers.add_parser('makemigration', help='generate new migration')
+    wish_make.add_argument('-l', type=str, help='migration label')
 
     wish_migrate = subparsers.add_parser('upgrade', help='run migrations')
     wish_migrate.add_argument('ref', type=str, help='reference hash')
