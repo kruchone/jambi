@@ -62,9 +62,9 @@ class Jambi(object):
             if current_ref > latest_ref:
                 self.logger.error('your database is at a higher version')
                 return
-
             if ref == 'latest':
-                ref = latset_ref
+                ref = latest_ref
+
             # filter out migrations that are beyond the desired version
             migrations = tuple(filter(lambda x: x[1] <= ref, migrations))
             self.logger.info('migrating to "{}"'.format(ref))
