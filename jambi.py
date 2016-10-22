@@ -7,9 +7,9 @@ import os
 import re
 import shutil
 import sys
-import time
 
-from peewee import CharField, IntegrityError, Model, PostgresqlDatabase, ProgrammingError
+from peewee import (Model, CharField, PostgresqlDatabase,
+                    IntegrityError, ProgrammingError)
 from playhouse.migrate import PostgresqlMigrator, migrate
 
 
@@ -18,6 +18,7 @@ _schema = 'public'
 
 
 class JambiModel(Model):
+    """The model that keeps the database version."""
     ref = CharField(primary_key=True)
 
     class Meta:
@@ -35,11 +36,15 @@ class Jambi(object):
         self.db, self.db_schema = self.__get_db_and_schema_from_config()
 
     def upgrade(self, ref):
-        """migrate the database to the supplied version"""
+        """Upgrade the database to the supplied version.
+
+        Arguments:
+        ref -- the version to upgrade the database to, or 'latest'
+        """
         try:
             ref = int(ref)
         except:
-            if ref is not None:
+            if ref != 'latest':
                 self.logger.error('unable to parse version \'{}\''.format(ref))
                 return
 
@@ -58,8 +63,9 @@ class Jambi(object):
                 self.logger.error('your database is at a higher version')
                 return
 
+            if ref == 'latest':
+                ref = latset_ref
             # filter out migrations that are beyond the desired version
-            ref = ref or latest_ref
             migrations = tuple(filter(lambda x: x[1] <= ref, migrations))
             self.logger.info('migrating to "{}"'.format(ref))
             self.db.connect()
@@ -176,7 +182,7 @@ class Jambi(object):
             self.logger.error('there was no wish to process')
 
         if wish == 'upgrade':
-            result = self.upgrade(kwargs.pop('ref', None))
+            result = self.upgrade(kwargs.pop('ref', 'latest'))
         elif wish == 'inspect':
             result = self.inspect()
         elif wish == 'latest':
