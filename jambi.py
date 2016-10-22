@@ -36,13 +36,31 @@ class Jambi(object):
 
     def upgrade(self, ref):
         """migrate the database to the supplied version"""
+        try:
+            ref = int(ref)
+        except:
+            if ref is not None:
+                self.logger.error('unable to parse version \'{}\''.format(ref))
+                return
+
+        # check the current db version
         current_ref = self.inspect()
         if current_ref is None:
             self.logger.error('upgrade halted: you must initialize jambi first')
             return
+
+        # get the migrations
         migrations = self.find_migrations()
         migrations = tuple(filter(lambda x: x[1] > current_ref, migrations))
         if any(migrations):
+            latest_ref = migrations[-1][1]
+            if current_ref > latest_ref:
+                self.logger.error('your database is at a higher version')
+                return
+
+            # filter out migrations that are beyond the desired version
+            ref = ref or latest_ref
+            migrations = tuple(filter(lambda x: x[1] <= ref, migrations))
             self.logger.info('migrating to "{}"'.format(ref))
             self.db.connect()
             with self.db.atomic():
@@ -191,11 +209,12 @@ if __name__ == '__main__':
     subparsers.add_parser('inspect', help='check database version')
     subparsers.add_parser('latest', help='get latest migration version')
     subparsers.add_parser('init', help='create jambi table')
+
     wish_make = subparsers.add_parser('makemigration', help='generate new migration')
     wish_make.add_argument('-l', type=str, help='migration label')
 
     wish_migrate = subparsers.add_parser('upgrade', help='run migrations')
-    wish_migrate.add_argument('ref', type=str, help='reference hash')
+    wish_migrate.add_argument('ref', type=str, help='db version', nargs='?')
 
     opts = parser.parse_args()
 
