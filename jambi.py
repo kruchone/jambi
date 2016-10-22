@@ -57,28 +57,33 @@ class Jambi(object):
         # get the migrations
         migrations = self.find_migrations()
         migrations = tuple(filter(lambda x: x[1] > current_ref, migrations))
-        if any(migrations):
-            latest_ref = migrations[-1][1]
-            if current_ref > latest_ref:
-                self.logger.error('your database is at a higher version')
-                return
-            if ref == 'latest':
-                ref = latest_ref
-
-            # filter out migrations that are beyond the desired version
-            migrations = tuple(filter(lambda x: x[1] <= ref, migrations))
-            self.logger.info('migrating to "{}"'.format(ref))
-            self.db.connect()
-            with self.db.atomic():
-                for n, v, m in migrations:
-                    self.logger.info('upgrading to version {}'.format(v))
-                    migrator = PostgresqlMigrator(self.db)
-                    upgrades = m.upgrade(migrator)
-                    migrate(*upgrades)
-                self.__set_version(migrations[-1][1])
-            self.db.close()
-        else:
+        if not any(migrations):
             self.logger.info('you are already up to date')
+            return
+        latest_ref = migrations[-1][1]
+        if current_ref > latest_ref:
+            self.logger.error('your database is at a higher version')
+            return
+        if ref == 'latest':
+            ref = latest_ref
+
+        # filter out migrations that are beyond the desired version
+        migrations = tuple(filter(lambda x: x[1] <= ref, migrations))
+        if not any(migrations):
+            self.logger.info('you are already up to date')
+            return
+
+        # run the migrations
+        self.logger.info('migrating to "{}"'.format(ref))
+        self.db.connect()
+        with self.db.atomic():
+            for n, v, m in migrations:
+                self.logger.info('upgrading to version {}'.format(v))
+                migrator = PostgresqlMigrator(self.db)
+                upgrades = m.upgrade(migrator)
+                migrate(*upgrades)
+            self.__set_version(migrations[-1][1])
+        self.db.close()
         return
 
     def downgrade(self, ref):
