@@ -12,6 +12,7 @@ from peewee import (Model, CharField, PostgresqlDatabase,
                     IntegrityError, ProgrammingError)
 from playhouse.migrate import PostgresqlMigrator, migrate
 
+from jambi.config import get_config_file
 from jambi.version import VERSION
 
 _db = PostgresqlDatabase(None)
@@ -138,7 +139,7 @@ class Jambi(object):
 
     def getconfig(self, section, key):
         config = configparser.ConfigParser()
-        config.read('jambi.conf')
+        config.read(get_config_file())
         return config[section][key]
 
     def inspect(self):
