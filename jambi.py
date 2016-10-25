@@ -45,40 +45,46 @@ class Jambi(object):
             ref = int(ref)
         except:
             if ref != 'latest':
-                self.logger.error('unable to parse version \'{}\''.format(ref))
+                self.logger.error('Unable to parse version "{}"'.format(ref))
                 return
 
         # check the current db version
         current_ref = self.inspect()
         if current_ref is None:
-            self.logger.error('upgrade halted: you must initialize jambi first')
+            self.logger.error('Unable to inspect your database. '
+                              'Perhaps you need to run \'jambi inpsect\'?')
             return
 
         # get the migrations
         migrations = self.find_migrations()
+        latest_ref = migrations[-1][1] if any(migrations) else 0
         migrations = tuple(filter(lambda x: x[1] > current_ref, migrations))
-        if not any(migrations):
-            self.logger.info('you are already up to date')
-            return
-        latest_ref = migrations[-1][1]
+
         if current_ref > latest_ref:
-            self.logger.error('your database is at a higher version')
+            self.logger.error('Your database version is higher than the '
+                              'current database version. '
+                              '(current: {}, latest: {})'.format(current_ref,
+                                                                 latest_ref))
+        elif current_ref == latest_ref:
+            self.logger.info('You are already up to date. '
+                             '(version: {})'.format(current_ref))
             return
-        if ref == 'latest':
-            ref = latest_ref
 
         # filter out migrations that are beyond the desired version
+        if ref == 'latest':
+            ref = latest_ref
         migrations = tuple(filter(lambda x: x[1] <= ref, migrations))
         if not any(migrations):
-            self.logger.info('you are already up to date')
+            self.logger.info('You are already up to date. '
+                             '(version: {})'.format(current_ref))
             return
 
         # run the migrations
-        self.logger.info('migrating to "{}"'.format(ref))
+        self.logger.info('Migrating to version {}'.format(ref))
         self.db.connect()
         with self.db.atomic():
             for n, v, m in migrations:
-                self.logger.info('upgrading to version {}'.format(v))
+                self.logger.info('Upgrading to version {}'.format(v))
                 migrator = PostgresqlMigrator(self.db)
                 upgrades = m.upgrade(migrator)
                 migrate(*upgrades)
@@ -93,7 +99,7 @@ class Jambi(object):
     def latest(self):
         """returns the latest version in the migrations folder"""
         ver = int(self.find_migrations()[-1][1])
-        self.logger.info('latest migration is at version {}'.format(ver))
+        self.logger.info('Latest migration is at version {}'.format(ver))
         return ver
 
     def find_migrations(self):
@@ -103,21 +109,29 @@ class Jambi(object):
         try:
             filenames = os.listdir(fullpath)
         except FileNotFoundError:
-            self.logger.error('unable to find migration folder "{}"'.format(fullpath))
+            self.logger.error('Unable to find migration folder '
+                              '"{}"'.format(fullpath))
             return
-        filenames = filter(lambda x: x.startswith('version_') and x.endswith('.py'), filenames)
-        filepaths = [(os.path.join(fullpath, f), f.replace('.py', '')) for f in filenames]
+
+        def is_valid_migration_name(n):
+            return n.startswith('version_') and n.endswith('.py')
+        filenames = filter(lambda x: is_valid_migration_name(x), filenames)
+        filepaths = [(os.path.join(fullpath, f), f.replace('.py', ''))
+                     for f in filenames]
         migrations = []
         for fp, mn in filepaths:
-            module_name = '.'.join([fileloc.replace('/','.').strip('.'), mn])
+            module_name = '.'.join([fileloc.replace('/', '.').strip('.'), mn])
             try:
                 ver = int(re.search(r'version_(\d+)', mn).group(1))
             except:
-                self.logger.warning('cannot parse version number from \'{}\', '
+                self.logger.warning('Cannot parse version number from "{}", '
                                     'skipping'.format(mn))
                 continue
-            self.logger.debug('found {} at version {}'.format(module_name, ver))
-            migrations.append((module_name, ver, importlib.import_module(module_name)))
+            self.logger.debug('Found {} at version {}'.format(module_name,
+                                                              ver))
+            migrations.append(
+                (module_name, ver, importlib.import_module(module_name))
+            )
         return sorted(migrations, key=lambda x: x[1])
 
     def getconfig(self, section, key):
@@ -136,13 +150,14 @@ class Jambi(object):
                 try:
                     result = int(field)
                 except ValueError:
-                    self.logger.error('unable to parse current version \'{}\''
-                                      'as an integer'.format(jambi_versions[0].ref))
-                self.logger.info('your database is at version "{}"'.format(field))
+                    self.logger.error('Database current version "{}" is not '
+                                      'valid'.format(jambi_versions[0].ref))
+                self.logger.info('Your database is at version '
+                                 '{}'.format(field))
             else:
-                self.logger.info('this database hasn\'t been migrated yet')
+                self.logger.info('This database hasn\'t been migrated yet')
         except ProgrammingError:
-            self.logger.info('run \'init\' to create a jambi version table first')
+            self.logger.info('Run "init" to create a jambi version table')
         finally:
             self.db.close()
         return result
@@ -156,7 +171,7 @@ class Jambi(object):
         """
         JambiModel.delete().execute()
         JambiModel.create(ref=str(ref))
-        self.logger.debug('set jambi version to {}'.format(ref))
+        self.logger.debug('Set jambi version to {}'.format(ref))
 
     def init(self):
         """initialize the jambi database version table"""
@@ -164,19 +179,22 @@ class Jambi(object):
         try:
             self.db.create_tables([JambiModel], safe=True)
             JambiModel.create(ref='0')
-            self.logger.info('database initialized')
+            self.logger.info('Database initialized')
         except IntegrityError:
-            self.logger.info('database was already initialized')
+            self.logger.info('Database was already initialized')
         self.db.close()
 
     def makemigration(self, template=None, message=None):
-        """create a new migration from template and place in migrate location"""
+        """create a new migration from template and place in migrate
+        location
+        """
         template = template or 'migration_template.py'
         ver = self.latest() + 1
-        destination = os.path.join(os.getcwd(), self.getconfig('migrate', 'location'))
+        destination = os.path.join(os.getcwd(), self.getconfig('migrate',
+                                                               'location'))
         fname = 'version_{}.py'.format(ver)
         shutil.copyfile(template, os.path.join(destination, fname))
-        self.logger.info('migration \'{}\' created'.format(fname))
+        self.logger.info('Migration \'{}\' created'.format(fname))
         self.latest()
 
     def wish_from_kwargs(self, **kwargs):
@@ -184,10 +202,10 @@ class Jambi(object):
         try:
             wish = kwargs.pop('wish')
         except KeyError:
-            self.logger.error('there was no wish to process')
+            self.logger.error('There was no wish to process')
 
         if wish == 'upgrade':
-            result = self.upgrade(kwargs.pop('ref', 'latest'))
+            result = self.upgrade(kwargs.pop('ref') or 'latest')
         elif wish == 'inspect':
             result = self.inspect()
         elif wish == 'latest':
@@ -198,7 +216,7 @@ class Jambi(object):
             result = self.makemigration(template=kwargs.pop('template', None),
                                         message=kwargs.pop('message', None))
         else:
-            self.logger.error('unknown wish')
+            self.logger.error('Unknown wish')
             result = None
 
         return result
@@ -214,14 +232,15 @@ class Jambi(object):
 
 if __name__ == '__main__':
     # parse arguments
-    parser = argparse.ArgumentParser(description='Migration tools for the db.')
+    parser = argparse.ArgumentParser(description='Migration tools for peewee')
     subparsers = parser.add_subparsers(title='actions', dest='wish')
 
     subparsers.add_parser('inspect', help='check database version')
     subparsers.add_parser('latest', help='get latest migration version')
     subparsers.add_parser('init', help='create jambi table')
 
-    wish_make = subparsers.add_parser('makemigration', help='generate new migration')
+    wish_make = subparsers.add_parser('makemigration',
+                                      help='generate new migration')
     wish_make.add_argument('-l', type=str, help='migration label')
 
     wish_migrate = subparsers.add_parser('upgrade', help='run migrations')
