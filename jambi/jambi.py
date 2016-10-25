@@ -12,6 +12,7 @@ from peewee import (Model, CharField, PostgresqlDatabase,
                     IntegrityError, ProgrammingError)
 from playhouse.migrate import PostgresqlMigrator, migrate
 
+from jambi.version import VERSION
 
 _db = PostgresqlDatabase(None)
 _schema = 'public'
@@ -34,6 +35,7 @@ class Jambi(object):
         logging.getLogger('peewee').setLevel(logging.INFO)
         self.logger = logging.getLogger('jambi')
         self.db, self.db_schema = self.__get_db_and_schema_from_config()
+        self.version = VERSION
 
     def upgrade(self, ref):
         """Upgrade the database to the supplied version.
@@ -230,7 +232,7 @@ class Jambi(object):
         return _db, _schema
 
 
-if __name__ == '__main__':
+def main():
     # parse arguments
     parser = argparse.ArgumentParser(description='Migration tools for peewee')
     subparsers = parser.add_subparsers(title='actions', dest='wish')
@@ -255,3 +257,7 @@ if __name__ == '__main__':
     # create jambi and process command
     jambi = Jambi()
     jambi.wish_from_kwargs(**vars(opts))
+
+
+if __name__ == '__main__':
+    main()
