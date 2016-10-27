@@ -1,20 +1,24 @@
 #! /usr/bin/env python3
 from setuptools import setup
-
-version = '0.1'
+from jambi.version import VERSION
 
 setup(
     name='jambi',
-    version=version,
+    version=VERSION,
     url='https://www.github.com/kruchone/jambi',
     author='Zach Kruchoski',
     author_email='kruchone@gmail.com',
     description=('A peewee database migration manager'),
     long_description=(open('README.md').read()),
     license='MIT',
-    packages=[],
+    packages=['jambi',],
+    py_modules=['jambi',],
     include_package_data=True,
-    scripts=['jambi.py'],
+    entry_points={
+        'console_scripts': [
+            'jambi = jambi.jambi:main'
+        ],
+    },
     zip_safe=False,
     install_requires=[
         'peewee>=2.8.5',
