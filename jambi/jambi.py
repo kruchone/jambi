@@ -12,6 +12,8 @@ from peewee import (Model, CharField, PostgresqlDatabase,
                     IntegrityError, ProgrammingError)
 from playhouse.migrate import PostgresqlMigrator, migrate
 
+from jambi.config import get_config_file, ENVIRONMENT_VARIABLE
+from jambi.exceptions import ImproperlyConfigured
 from jambi.version import VERSION
 
 _db = PostgresqlDatabase(None)
@@ -30,12 +32,15 @@ class JambiModel(Model):
 
 class Jambi(object):
     """A database migration helper for peewee."""
-    def __init__(self):
+    def __init__(self, config_file=None):
+        self.version = VERSION
+        if config_file and not os.path.isfile(config_file):
+                raise ImproperlyConfigured("Unable to load config file")
+        self.config_file = config_file or get_config_file()
         logging.basicConfig(level=logging.INFO)
         logging.getLogger('peewee').setLevel(logging.INFO)
         self.logger = logging.getLogger('jambi')
         self.db, self.db_schema = self.__get_db_and_schema_from_config()
-        self.version = VERSION
 
     def upgrade(self, ref):
         """Upgrade the database to the supplied version.
@@ -138,8 +143,13 @@ class Jambi(object):
 
     def getconfig(self, section, key):
         config = configparser.ConfigParser()
-        config.read('jambi.conf')
-        return config[section][key]
+        config.read(self.config_file)
+        try:
+            return config[section][key]
+        except KeyError as e:
+            raise ImproperlyConfigured(
+                "Unable to find '{}'' in config file.".format(e)
+            )
 
     def inspect(self):
         """inspect the database and report its version"""
@@ -234,9 +244,25 @@ class Jambi(object):
 
 def main():
     # parse arguments
-    parser = argparse.ArgumentParser(description='Migration tools for peewee')
-    subparsers = parser.add_subparsers(title='actions', dest='wish')
+    parser = argparse.ArgumentParser(
+        prog="jambi",
+        description='Migration tools for peewee'
+    )
+    parser.add_argument(
+        '--config',
+        nargs='?',
+        help='absolute path to config file; you can also set the {} ' \
+            'environment variable'.format(ENVIRONMENT_VARIABLE),
+        type=str,
+        default='',
+    )
+    parser.add_argument(
+        '--version',
+        action='version',
+        version='%(prog)s {}'.format(VERSION)
+    )
 
+    subparsers = parser.add_subparsers(title='actions', dest='wish')
     subparsers.add_parser('inspect', help='check database version')
     subparsers.add_parser('latest', help='get latest migration version')
     subparsers.add_parser('init', help='create jambi table')
@@ -255,7 +281,7 @@ def main():
         sys.exit(1)
 
     # create jambi and process command
-    jambi = Jambi()
+    jambi = Jambi(config_file=opts.config)
     jambi.wish_from_kwargs(**vars(opts))
 
 
