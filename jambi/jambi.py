@@ -143,7 +143,7 @@ class Jambi(object):
 
     def getconfig(self, section, key):
         config = configparser.ConfigParser()
-        config.read(self.config_file)
+        config.read(self.config_file or 'jambi.conf')
         try:
             return config[section][key]
         except KeyError as e:

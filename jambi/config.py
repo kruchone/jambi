@@ -5,7 +5,7 @@ from jambi.exceptions import ImproperlyConfigured
 ENVIRONMENT_VARIABLE = "JAMBI_CONFIG"
 
 def get_config_file():
-    config_file = os.environ.get(ENVIRONMENT_VARIABLE)
+    config_file = os.environ.get(ENVIRONMENT_VARIABLE, 'jambi.conf')
     if config_file:
         if os.path.isfile(config_file):
             return config_file
