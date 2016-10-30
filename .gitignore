@@ -1,3 +1,7 @@
+jambi.egg-info/*
+*/__pycache__/*
+build/
+dist/
 env/
 *.swp
 jambi.conf
