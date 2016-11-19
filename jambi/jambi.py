@@ -101,16 +101,19 @@ class Jambi(object):
         """downgrade the db to the supplied version"""
         return NotImplemented
 
-    def latest(self):
+    def latest(self, quiet=False):
         """returns the latest version in the migrations folder"""
         ver = None
         migrations = self.find_migrations()
         if any(migrations):
             ver = migrations[-1][1]
-            self.logger.info('Latest migration is at version {}'.format(ver))
+            if not quiet:
+                self.logger.info('Latest migration is at version '
+                                 '{}'.format(ver))
         else:
-            self.logger.info('There are no migrations.')
             ver = 0
+            if not quiet:
+                self.logger.info('There are no migrations.')
         return ver
 
     def find_migrations(self):
@@ -190,12 +193,13 @@ class Jambi(object):
             self.logger.info('Database was already initialized')
         self.db.close()
 
-    def makemigration(self, template=None, message=None):
+    def makemigration(self):
         """create a new migration from template and place in migrate
         location
         """
-        template = template or 'migration_template.py'
-        ver = self.latest() + 1
+        template = os.path.join(os.path.dirname(__file__),
+                                'migration_template.py')
+        ver = self.latest(quiet=True) + 1
         destination = os.path.abspath(self.config.get('migrate', 'location'))
         fname = 'version_{}.py'.format(ver)
         shutil.copyfile(template, os.path.join(destination, fname))
@@ -218,8 +222,7 @@ class Jambi(object):
         elif wish == 'init':
             result = self.init()
         elif wish == 'makemigration':
-            result = self.makemigration(template=kwargs.pop('template', None),
-                                        message=kwargs.pop('message', None))
+            result = self.makemigration()
         else:
             self.logger.error('Unknown wish')
             result = None
