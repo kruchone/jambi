@@ -35,7 +35,7 @@ class Jambi(object):
         self.version = VERSION
         self.config = JambiConfig()
         sys.path.append(os.getcwd())
-        logging.basicConfig(level=logging.DEBUG)
+        logging.basicConfig(level=logging.INFO)
         logging.getLogger('peewee').setLevel(logging.INFO)
         self.logger = logging.getLogger('jambi')
         self.db, self.db_schema = self.__get_db_and_schema_from_config()
