@@ -1,6 +1,5 @@
 #! /usr/bin/env python3
 import argparse
-import configparser
 import importlib
 import logging
 import os
@@ -12,9 +11,9 @@ from peewee import (Model, CharField, PostgresqlDatabase,
                     IntegrityError, ProgrammingError)
 from playhouse.migrate import PostgresqlMigrator, migrate
 
-from jambi.config import get_config_file, ENVIRONMENT_VARIABLE
-from jambi.exceptions import ImproperlyConfigured
+from jambi.config import JambiConfig
 from jambi.version import VERSION
+
 
 _db = PostgresqlDatabase(None)
 _schema = 'public'
@@ -34,10 +33,9 @@ class Jambi(object):
     """A database migration helper for peewee."""
     def __init__(self, config_file=None):
         self.version = VERSION
-        if config_file and not os.path.isfile(config_file):
-                raise ImproperlyConfigured("Unable to load config file")
-        self.config_file = config_file or get_config_file()
-        logging.basicConfig(level=logging.INFO)
+        self.config = JambiConfig()
+        sys.path.append(os.getcwd())
+        logging.basicConfig(level=logging.DEBUG)
         logging.getLogger('peewee').setLevel(logging.INFO)
         self.logger = logging.getLogger('jambi')
         self.db, self.db_schema = self.__get_db_and_schema_from_config()
@@ -105,20 +103,26 @@ class Jambi(object):
 
     def latest(self):
         """returns the latest version in the migrations folder"""
-        ver = int(self.find_migrations()[-1][1])
-        self.logger.info('Latest migration is at version {}'.format(ver))
+        ver = None
+        migrations = self.find_migrations()
+        if any(migrations):
+            ver = migrations[-1][1]
+            self.logger.info('Latest migration is at version {}'.format(ver))
+        else:
+            self.logger.info('There are no migrations.')
         return ver
 
     def find_migrations(self):
         """find, import, and return all migration files as modules"""
-        fileloc = self.getconfig('migrate', 'location')
-        fullpath = os.path.join(os.getcwd(), fileloc)
+        fileloc = self.config.get('migrate', 'location')
+        fullpath = os.path.abspath(fileloc)
         try:
             filenames = os.listdir(fullpath)
+            print(filenames)
         except FileNotFoundError:
             self.logger.error('Unable to find migration folder '
                               '"{}"'.format(fullpath))
-            return
+            return []
 
         def is_valid_migration_name(n):
             return n.startswith('version_') and n.endswith('.py')
@@ -140,16 +144,6 @@ class Jambi(object):
                 (module_name, ver, importlib.import_module(module_name))
             )
         return sorted(migrations, key=lambda x: x[1])
-
-    def getconfig(self, section, key):
-        config = configparser.ConfigParser()
-        config.read(self.config_file or 'jambi.conf')
-        try:
-            return config[section][key]
-        except KeyError as e:
-            raise ImproperlyConfigured(
-                "Unable to find '{}'' in config file.".format(e)
-            )
 
     def inspect(self):
         """inspect the database and report its version"""
@@ -202,8 +196,7 @@ class Jambi(object):
         """
         template = template or 'migration_template.py'
         ver = self.latest() + 1
-        destination = os.path.join(os.getcwd(), self.getconfig('migrate',
-                                                               'location'))
+        destination = os.path.abspath(self.config.get('migrate', 'location'))
         fname = 'version_{}.py'.format(ver)
         shutil.copyfile(template, os.path.join(destination, fname))
         self.logger.info('Migration \'{}\' created'.format(fname))
@@ -234,11 +227,11 @@ class Jambi(object):
         return result
 
     def __get_db_and_schema_from_config(self):
-        _db.init(self.getconfig('database', 'database'),
-                 user=self.getconfig('database', 'user'),
-                 password=self.getconfig('database', 'password'),
-                 host=self.getconfig('database', 'host'))
-        _schema = self.getconfig('database', 'schema')
+        _db.init(self.config.get('database', 'database'),
+                 user=self.config.get('database', 'user'),
+                 password=self.config.get('database', 'password'),
+                 host=self.config.get('database', 'host'))
+        _schema = self.config.get('database', 'schema')
         return _db, _schema
 
 
@@ -251,10 +244,9 @@ def main():
     parser.add_argument(
         '--config',
         nargs='?',
-        help='absolute path to config file; you can also set the {} ' \
-            'environment variable'.format(ENVIRONMENT_VARIABLE),
+        help='config file to use',
         type=str,
-        default='',
+        default='jambi.conf',
     )
     parser.add_argument(
         '--version',
