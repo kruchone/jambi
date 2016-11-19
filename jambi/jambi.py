@@ -118,7 +118,6 @@ class Jambi(object):
         fullpath = os.path.abspath(fileloc)
         try:
             filenames = os.listdir(fullpath)
-            print(filenames)
         except FileNotFoundError:
             self.logger.error('Unable to find migration folder '
                               '"{}"'.format(fullpath))
