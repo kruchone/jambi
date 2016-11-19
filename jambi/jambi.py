@@ -110,6 +110,7 @@ class Jambi(object):
             self.logger.info('Latest migration is at version {}'.format(ver))
         else:
             self.logger.info('There are no migrations.')
+            ver = 0
         return ver
 
     def find_migrations(self):
