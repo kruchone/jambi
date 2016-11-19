@@ -37,4 +37,4 @@ location=./migrations/
 ```
 
 ### Contributing
-I would like to get things to a decently-stable state before I start accepting contributions, but stay tuned!
+Pull requests are welcome, and please open issues for any bugs, enhancements, or feature requests.
