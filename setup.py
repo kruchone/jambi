@@ -9,7 +9,7 @@ setup(
     author='Zach Kruchoski',
     author_email='kruchone@gmail.com',
     description=('A peewee database migration manager'),
-    long_description=(open('README.md').read()),
+    long_description=(open('README.rst').read()),
     license='MIT',
     packages=['jambi',],
     py_modules=['jambi',],
