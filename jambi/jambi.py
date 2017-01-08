@@ -120,6 +120,8 @@ class Jambi(object):
         """find, import, and return all migration files as modules"""
         fileloc = self.config.get('migrate', 'location')
         fullpath = os.path.abspath(fileloc)
+        if not os.path.exists(fullpath):
+            os.makedirs(fullpath)
         try:
             filenames = os.listdir(fullpath)
         except FileNotFoundError:
@@ -201,6 +203,8 @@ class Jambi(object):
                                 'migration_template.py')
         ver = self.latest(quiet=True) + 1
         destination = os.path.abspath(self.config.get('migrate', 'location'))
+        if not os.path.exists(destination):
+            os.makedirs(destination)
         fname = 'version_{}.py'.format(ver)
         shutil.copyfile(template, os.path.join(destination, fname))
         self.logger.info('Migration \'{}\' created'.format(fname))
