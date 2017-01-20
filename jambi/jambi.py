@@ -15,7 +15,9 @@ from jambi.config import JambiConfig
 from jambi.version import VERSION
 
 
-_db = PostgresqlDatabase(None)
+_db = PostgresqlDatabase(None,
+                         connect_timeout=3,
+                         application_name='jambi')
 _schema = 'public'
 
 
