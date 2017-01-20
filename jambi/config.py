@@ -10,13 +10,13 @@ logger = logging.getLogger(__name__)
 
 class JambiConfig(object):
     """jambi configuration object"""
-    def __init__(self):
-        self.config, self.location = self.load_config()
+    def __init__(self, config_file=None):
+        self.config, self.location = self.load_config(config_file)
 
-    def load_config(self):
+    def load_config(self, config_file=None):
         """loads the jambi configuration from file"""
         config = configparser.ConfigParser()
-        location = os.path.abspath('jambi.conf')
+        location = os.path.abspath(config_file or 'jambi.conf')
         config.read(location)
         if self.is_valid_config(config):
             logger.info('Configuration loaded.')

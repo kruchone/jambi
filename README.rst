@@ -43,6 +43,7 @@ Here is an example jambi.conf, set up to connect to a vanilla postgres database:
     database=test
     schema=public
     host=localhost
+    port=5432
     user=postgres
     password=
 

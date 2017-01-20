@@ -35,7 +35,7 @@ class Jambi(object):
     """A database migration helper for peewee."""
     def __init__(self, config_file=None):
         self.version = VERSION
-        self.config = JambiConfig()
+        self.config = JambiConfig(config_file=config_file)
         sys.path.append(os.getcwd())
         logging.basicConfig(level=logging.INFO)
         logging.getLogger('peewee').setLevel(logging.INFO)
@@ -239,7 +239,8 @@ class Jambi(object):
         _db.init(self.config.get('database', 'database'),
                  user=self.config.get('database', 'user'),
                  password=self.config.get('database', 'password'),
-                 host=self.config.get('database', 'host'))
+                 host=self.config.get('database', 'host'),
+                 port=self.config.get('database', 'port'))
         _schema = self.config.get('database', 'schema')
         return _db, _schema
 
