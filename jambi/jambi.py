@@ -95,7 +95,7 @@ class Jambi(object):
                 migrator = PostgresqlMigrator(self.db)
                 upgrades = m.upgrade(migrator)
                 migrate(*upgrades)
-            self.__set_version(migrations[-1][1])
+            self._set_version(migrations[-1][1])
         self.db.close()
         return
 
@@ -175,7 +175,7 @@ class Jambi(object):
             self.db.close()
         return result
 
-    def __set_version(self, ref):
+    def _set_version(self, ref):
         """sets the jambi table version
 
         Note that this does not run the migrations, but is instead used by
