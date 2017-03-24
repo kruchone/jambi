@@ -15,14 +15,13 @@ from jambi.config import JambiConfig
 from jambi.version import VERSION
 
 
-_db = PostgresqlDatabase(None,
-                         connect_timeout=3,
-                         application_name='jambi')
+_db = PostgresqlDatabase(None, connect_timeout=3, application_name='jambi')
 _schema = 'public'
 
 
 class JambiModel(Model):
-    """The model that keeps the database version."""
+    """The model that keeps the database version.
+    """
     ref = CharField(primary_key=True)
 
     class Meta:
@@ -32,74 +31,90 @@ class JambiModel(Model):
 
 
 class Jambi(object):
-    """A database migration helper for peewee."""
-    def __init__(self, config_file=None):
+    """A database migration helper for peewee.
+
+    Args:
+        config_file: the config file to load if not 'jambi.conf'
+        debug: whether to start jambi in debug mode
+    """
+    def __init__(self, config_file=None, debug=False):
         self.version = VERSION
-        self.config = JambiConfig(config_file=config_file)
-        sys.path.append(os.getcwd())
-        logging.basicConfig(level=logging.INFO)
+        self.debug = debug
+
+        # configure logging
+        debug_log_extras = '%(filename)s:%(lineno)d (%(funcName)s) '
+        log_format = '[ %(levelname)s ] <%(name)s> {}%(message)s'
+        log_format = log_format.format(debug_log_extras) if debug else log_format.format('')
+        log_level = logging.DEBUG if debug else logging.INFO
+        logging.basicConfig(level=log_level, format=log_format)
         logging.getLogger('peewee').setLevel(logging.INFO)
         self.logger = logging.getLogger('jambi')
-        self.db, self.db_schema = self.__get_db_and_schema_from_config()
 
-    def upgrade(self, ref):
+        # setup jambi config
+        sys.path.append(os.getcwd())
+        self.config = JambiConfig(config_file)
+        self.db, self.db_schema = self.config._get_db_and_schema(_db)
+
+    def upgrade(self, version):
         """Upgrade the database to the supplied version.
 
         Arguments:
-        ref -- the version to upgrade the database to, or 'latest'
+            version: the version to upgrade the database to, or 'latest'
         """
         try:
-            ref = int(ref)
+            version = int(version)
         except:
-            if ref != 'latest':
-                self.logger.error('Unable to parse version "{}"'.format(ref))
+            if version != 'latest':
+                self.logger.error('Unable to parse version "{}"'.format(version))
                 return
 
         # check the current db version
-        current_ref = self.inspect()
-        if current_ref is None:
+        current_version = self.inspect()
+        if current_version is None:
             self.logger.error('Unable to inspect your database. '
                               'Perhaps you need to run \'jambi inpsect\'?')
             return
 
         # get the migrations
         migrations = self.find_migrations()
-        latest_ref = migrations[-1][1] if any(migrations) else 0
-        migrations = tuple(filter(lambda x: x[1] > current_ref, migrations))
+        latest_version = migrations[-1][1] if any(migrations) else 0
+        migrations = tuple(filter(lambda x: x[1] > current_version, migrations))
 
-        if current_ref > latest_ref:
+        if current_version > latest_version:
             self.logger.error('Your database version is higher than the '
                               'current database version. '
-                              '(current: {}, latest: {})'.format(current_ref,
-                                                                 latest_ref))
-        elif current_ref == latest_ref:
+                              '(current: {}, latest: {})'.format(current_version,
+                                                                 latest_version))
+        elif current_version == latest_version:
             self.logger.info('You are already up to date. '
-                             '(version: {})'.format(current_ref))
+                             '(version: {})'.format(current_version))
             return
 
         # filter out migrations that are beyond the desired version
-        if ref == 'latest':
-            ref = latest_ref
-        migrations = tuple(filter(lambda x: x[1] <= ref, migrations))
+        if version == 'latest':
+            version = latest_version
+        migrations = tuple(filter(lambda x: x[1] <= version, migrations))
         if not any(migrations):
             self.logger.info('You are already up to date. '
-                             '(version: {})'.format(current_ref))
+                             '(version: {})'.format(current_version))
             return
 
         # run the migrations
-        self.logger.info('Migrating to version {}'.format(ref))
+        self.logger.info('Now performing the migration to version {}...'.format(version))
         self.db.connect()
         with self.db.atomic():
             for n, v, m in migrations:
-                self.logger.info('Upgrading to version {}'.format(v))
+                self.logger.info('>>> [{}] Attempting...'.format(v))
                 migrator = PostgresqlMigrator(self.db)
                 upgrades = m.upgrade(migrator)
                 migrate(*upgrades)
-            self._set_version(migrations[-1][1])
+                self._set_version(v)
+                self.logger.info('>>> [{}] Success!'.format(v))
         self.db.close()
+        self.logger.info('Successfully migrated to version {}...'.format(version))
         return
 
-    def downgrade(self, ref):
+    def downgrade(self, version):
         """downgrade the db to the supplied version"""
         return NotImplemented
 
@@ -175,16 +190,17 @@ class Jambi(object):
             self.db.close()
         return result
 
-    def _set_version(self, ref):
+    def _set_version(self, version):
         """sets the jambi table version
 
         Note that this does not run the migrations, but is instead used by
         the migration logic to easily set the version after migrations have
         completed.
         """
-        JambiModel.delete().execute()
-        JambiModel.create(ref=str(ref))
-        self.logger.debug('Set jambi version to {}'.format(ref))
+        with self.db.atomic():
+            JambiModel.delete().execute()
+            JambiModel.create(ref=str(version))
+            self.logger.debug('Set jambi version to {}'.format(version))
 
     def init(self):
         """initialize the jambi database version table"""
@@ -220,7 +236,7 @@ class Jambi(object):
             self.logger.error('There was no wish to process')
 
         if wish == 'upgrade':
-            result = self.upgrade(kwargs.pop('ref') or 'latest')
+            result = self.upgrade(kwargs.pop('version') or 'latest')
         elif wish == 'inspect':
             result = self.inspect()
         elif wish == 'latest':
@@ -235,34 +251,21 @@ class Jambi(object):
 
         return result
 
-    def __get_db_and_schema_from_config(self):
-        _db.init(self.config.get('database', 'database'),
-                 user=self.config.get('database', 'user'),
-                 password=self.config.get('database', 'password'),
-                 host=self.config.get('database', 'host'),
-                 port=self.config.get('database', 'port'))
-        _schema = self.config.get('database', 'schema')
-        return _db, _schema
-
-
 def main():
     # parse arguments
-    parser = argparse.ArgumentParser(
-        prog="jambi",
-        description='Migration tools for peewee'
-    )
-    parser.add_argument(
-        '--config',
-        nargs='?',
-        help='config file to use',
-        type=str,
-        default='jambi.conf',
-    )
-    parser.add_argument(
-        '--version',
-        action='version',
-        version='%(prog)s {}'.format(VERSION)
-    )
+    parser = argparse.ArgumentParser(prog="jambi",
+                                     description='Migration tools for peewee')
+    parser.add_argument('--config',
+                        help='config file to use',
+                        type=str)
+
+    parser.add_argument('--version',
+                        action='version',
+                        version='%(prog)s=={}'.format(VERSION))
+
+    parser.add_argument('--debug',
+                        action='store_true',
+                        help='enable debugging mode')
 
     subparsers = parser.add_subparsers(title='actions', dest='wish')
     subparsers.add_parser('inspect', help='check database version')
@@ -274,7 +277,7 @@ def main():
     wish_make.add_argument('-l', type=str, help='migration label')
 
     wish_migrate = subparsers.add_parser('upgrade', help='run migrations')
-    wish_migrate.add_argument('ref', type=str, help='db version', nargs='?')
+    wish_migrate.add_argument('version', type=str, help='db version', nargs='?')
 
     opts = parser.parse_args()
 
@@ -283,7 +286,7 @@ def main():
         sys.exit(1)
 
     # create jambi and process command
-    jambi = Jambi(config_file=opts.config)
+    jambi = Jambi(config_file=opts.config, debug=opts.debug)
     jambi.wish_from_kwargs(**vars(opts))
 
 
